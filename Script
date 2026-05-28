@@ -1,0 +1,289 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // State management
+    let state = {
+        currency: '$',
+        taxRate: 10,
+        discountRate: 0,
+        items: [
+            { id: generateId(), name: 'Web Development Services', qty: 1, price: 1500 },
+            { id: generateId(), name: 'UI/UX Design', qty: 1, price: 800 }
+        ]
+    };
+
+    // DOM Elements
+    const elements = {
+        currency: document.getElementById('currency-selector'),
+        invNumber: document.getElementById('inv-number'),
+        invDate: document.getElementById('inv-date'),
+        companyName: document.getElementById('company-name'),
+        companyEmail: document.getElementById('company-email'),
+        companyAddress: document.getElementById('company-address'),
+        clientName: document.getElementById('client-name'),
+        clientEmail: document.getElementById('client-email'),
+        clientAddress: document.getElementById('client-address'),
+        taxRate: document.getElementById('tax-rate'),
+        discountRate: document.getElementById('discount-rate'),
+        itemsContainer: document.getElementById('items-container'),
+        btnAddItem: document.getElementById('btn-add-item'),
+        btnClear: document.getElementById('btn-clear'),
+        btnPrint: document.getElementById('btn-print'),
+        btnDownload: document.getElementById('btn-download'),
+        
+        // Preview Elements
+        prevCompanyName: document.getElementById('preview-company-name'),
+        prevCompanyEmail: document.getElementById('preview-company-email'),
+        prevCompanyAddress: document.getElementById('preview-company-address'),
+        prevClientName: document.getElementById('preview-client-name'),
+        prevClientEmail: document.getElementById('preview-client-email'),
+        prevClientAddress: document.getElementById('preview-client-address'),
+        prevInvNumber: document.getElementById('preview-inv-number'),
+        prevInvDate: document.getElementById('preview-inv-date'),
+        prevItemsBody: document.getElementById('preview-items-body'),
+        prevSubtotal: document.getElementById('preview-subtotal'),
+        prevTaxRate: document.getElementById('preview-tax-rate'),
+        prevTaxAmount: document.getElementById('preview-tax-amount'),
+        prevDiscountRate: document.getElementById('preview-discount-rate'),
+        prevDiscountAmount: document.getElementById('preview-discount-amount'),
+        prevTotal: document.getElementById('preview-total')
+    };
+
+    // Initialize
+    init();
+
+    function init() {
+        // Set default date to today
+        const today = new Date().toISOString().split('T')[0];
+        elements.invDate.value = today;
+
+        // Load local storage draft if exists
+        const draft = localStorage.getItem('invoiceProDraft');
+        if (draft) {
+            try {
+                const parsedDraft = JSON.parse(draft);
+                // Merge state
+                state.items = parsedDraft.items || state.items;
+                state.currency = parsedDraft.currency || state.currency;
+                
+                // Populate inputs
+                elements.currency.value = state.currency;
+                elements.invNumber.value = parsedDraft.invNumber || 'INV-0001';
+                elements.invDate.value = parsedDraft.invDate || today;
+                elements.companyName.value = parsedDraft.companyName || '';
+                elements.companyEmail.value = parsedDraft.companyEmail || '';
+                elements.companyAddress.value = parsedDraft.companyAddress || '';
+                elements.clientName.value = parsedDraft.clientName || '';
+                elements.clientEmail.value = parsedDraft.clientEmail || '';
+                elements.clientAddress.value = parsedDraft.clientAddress || '';
+                elements.taxRate.value = parsedDraft.taxRate !== undefined ? parsedDraft.taxRate : 10;
+                elements.discountRate.value = parsedDraft.discountRate !== undefined ? parsedDraft.discountRate : 0;
+            } catch (e) {
+                console.error('Error loading draft', e);
+            }
+        }
+
+        renderItemsForm();
+        updatePreview();
+        attachEventListeners();
+        
+        // Handle responsive preview scaling
+        window.addEventListener('resize', scalePreview);
+        scalePreview();
+    }
+
+    function generateId() {
+        return Math.random().toString(36).substr(2, 9);
+    }
+
+    function formatCurrency(amount) {
+        return `${state.currency}${parseFloat(amount).toFixed(2)}`;
+    }
+
+    function attachEventListeners() {
+        // Input listeners for live preview & auto-save
+        const inputs = document.querySelectorAll('.editor-panel input, .editor-panel select');
+        inputs.forEach(input => {
+            input.addEventListener('input', () => {
+                updateStateFromInputs();
+                updatePreview();
+                saveDraft();
+            });
+        });
+
+        // Add Item
+        elements.btnAddItem.addEventListener('click', () => {
+            state.items.push({ id: generateId(), name: 'New Item', qty: 1, price: 0 });
+            renderItemsForm();
+            updatePreview();
+            saveDraft();
+        });
+
+        // Clear/Reset
+        elements.btnClear.addEventListener('click', () => {
+            if(confirm('Are you sure you want to reset the invoice?')) {
+                localStorage.removeItem('invoiceProDraft');
+                location.reload();
+            }
+        });
+
+        // Print
+        elements.btnPrint.addEventListener('click', () => {
+            window.print();
+        });
+
+        // Download PDF
+        elements.btnDownload.addEventListener('click', () => {
+            const element = document.getElementById('invoice-preview');
+            const opt = {
+                margin: 0,
+                filename: `${elements.invNumber.value || 'invoice'}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            // Add temporary class to ensure PDF looks exactly like print
+            element.style.transform = 'scale(1)';
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                scalePreview(); // Restore scale
+            });
+        });
+    }
+
+    function updateStateFromInputs() {
+        state.currency = elements.currency.value;
+        state.taxRate = parseFloat(elements.taxRate.value) || 0;
+        state.discountRate = parseFloat(elements.discountRate.value) || 0;
+    }
+
+    function renderItemsForm() {
+        elements.itemsContainer.innerHTML = '';
+        state.items.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.innerHTML = `
+                <input type="text" class="glass-input item-name" placeholder="Description" value="${item.name}" data-index="${index}">
+                <input type="number" class="glass-input item-qty" placeholder="Qty" value="${item.qty}" min="1" data-index="${index}">
+                <input type="number" class="glass-input item-price" placeholder="Price" value="${item.price}" min="0" data-index="${index}">
+                <button class="btn-remove" data-index="${index}">✕</button>
+            `;
+            elements.itemsContainer.appendChild(row);
+        });
+
+        // Attach listeners to newly created elements
+        const nameInputs = document.querySelectorAll('.item-name');
+        const qtyInputs = document.querySelectorAll('.item-qty');
+        const priceInputs = document.querySelectorAll('.item-price');
+        const removeBtns = document.querySelectorAll('.btn-remove');
+
+        nameInputs.forEach(input => input.addEventListener('input', (e) => updateItem(e, 'name')));
+        qtyInputs.forEach(input => input.addEventListener('input', (e) => updateItem(e, 'qty')));
+        priceInputs.forEach(input => input.addEventListener('input', (e) => updateItem(e, 'price')));
+        
+        removeBtns.forEach(btn => btn.addEventListener('click', (e) => {
+            const index = e.target.getAttribute('data-index');
+            state.items.splice(index, 1);
+            renderItemsForm();
+            updatePreview();
+            saveDraft();
+        }));
+    }
+
+    function updateItem(e, field) {
+        const index = e.target.getAttribute('data-index');
+        let value = e.target.value;
+        if (field === 'qty' || field === 'price') {
+            value = parseFloat(value) || 0;
+        }
+        state.items[index][field] = value;
+        updatePreview();
+        saveDraft();
+    }
+
+    function updatePreview() {
+        // Text info
+        elements.prevCompanyName.textContent = elements.companyName.value || 'Company Name';
+        elements.prevCompanyEmail.textContent = elements.companyEmail.value || 'Email';
+        elements.prevCompanyAddress.textContent = elements.companyAddress.value || 'Address';
+        
+        elements.prevClientName.textContent = elements.clientName.value || 'Client Name';
+        elements.prevClientEmail.textContent = elements.clientEmail.value || 'Client Email';
+        elements.prevClientAddress.textContent = elements.clientAddress.value || 'Client Address';
+
+        elements.prevInvNumber.textContent = elements.invNumber.value || 'INV-0000';
+        elements.prevInvDate.textContent = elements.invDate.value || 'YYYY-MM-DD';
+
+        // Items Table
+        elements.prevItemsBody.innerHTML = '';
+        let subtotal = 0;
+
+        state.items.forEach(item => {
+            const amount = item.qty * item.price;
+            subtotal += amount;
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.name || 'Item Description'}</td>
+                <td class="text-right">${item.qty}</td>
+                <td class="text-right">${formatCurrency(item.price)}</td>
+                <td class="text-right">${formatCurrency(amount)}</td>
+            `;
+            elements.prevItemsBody.appendChild(tr);
+        });
+
+        // Math Calculations
+        const discountAmount = subtotal * (state.discountRate / 100);
+        const afterDiscount = subtotal - discountAmount;
+        const taxAmount = afterDiscount * (state.taxRate / 100);
+        const total = afterDiscount + taxAmount;
+
+        // Update Totals DOM
+        elements.prevSubtotal.textContent = formatCurrency(subtotal);
+        
+        elements.prevDiscountRate.textContent = state.discountRate;
+        elements.prevDiscountAmount.textContent = `-${formatCurrency(discountAmount)}`;
+        
+        elements.prevTaxRate.textContent = state.taxRate;
+        elements.prevTaxAmount.textContent = `+${formatCurrency(taxAmount)}`;
+        
+        elements.prevTotal.textContent = formatCurrency(total);
+    }
+
+    function saveDraft() {
+        const draft = {
+            currency: state.currency,
+            taxRate: state.taxRate,
+            discountRate: state.discountRate,
+            items: state.items,
+            invNumber: elements.invNumber.value,
+            invDate: elements.invDate.value,
+            companyName: elements.companyName.value,
+            companyEmail: elements.companyEmail.value,
+            companyAddress: elements.companyAddress.value,
+            clientName: elements.clientName.value,
+            clientEmail: elements.clientEmail.value,
+            clientAddress: elements.clientAddress.value
+        };
+        localStorage.setItem('invoiceProDraft', JSON.stringify(draft));
+    }
+
+    function scalePreview() {
+        // Fits the A4 preview perfectly inside its container
+        const previewPanel = document.querySelector('.preview-panel');
+        const invoicePaper = document.getElementById('invoice-preview');
+        
+        if(window.innerWidth > 1024) {
+            const availableWidth = previewPanel.clientWidth - 64; // padding
+            const targetWidth = 794; // 210mm in pixels at 96dpi approx
+            const scale = Math.min(1, availableWidth / targetWidth);
+            
+            invoicePaper.style.transform = `scale(${scale})`;
+            // Adjust height container to match scaled height
+            previewPanel.style.alignItems = scale < 1 ? 'flex-start' : 'center';
+        } else {
+            invoicePaper.style.transform = 'scale(1)';
+            previewPanel.style.alignItems = 'flex-start';
+        }
+    }
+});
+
