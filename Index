@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InvoicePro - Premium Invoice Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loader"></div>
+        <h2>InvoicePro Loading...</h2>
+    </div>
+
+    <div class="app-container">
+        <div class="editor-panel glass-panel no-print">
+            <header class="app-header">
+                <h1>Invoice<span>Pro</span></h1>
+                <div class="header-actions">
+                    <select id="currency-selector" class="glass-input small-input">
+                        <option value="$">USD ($)</option>
+                        <option value="€">EUR (€)</option>
+                        <option value="£">GBP (£)</option>
+                        <option value="₹">INR (₹)</option>
+                    </select>
+                    <button id="btn-clear" class="btn btn-outline">Reset</button>
+                </div>
+            </header>
+
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Invoice Number</label>
+                        <input type="text" id="inv-number" class="glass-input" value="INV-0001">
+                    </div>
+                    <div class="input-group">
+                        <label>Date</label>
+                        <input type="date" id="inv-date" class="glass-input">
+                    </div>
+                </div>
+
+                <div class="section-title">Your Details</div>
+                <div class="input-group">
+                    <input type="text" id="company-name" class="glass-input" placeholder="Company Name" value="Acme Corp">
+                </div>
+                <div class="form-row">
+                    <div class="input-group">
+                        <input type="text" id="company-email" class="glass-input" placeholder="Email" value="hello@acmecorp.com">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="company-address" class="glass-input" placeholder="Address" value="123 SaaS Street, NY">
+                    </div>
+                </div>
+
+                <div class="section-title">Client Details</div>
+                <div class="input-group">
+                    <input type="text" id="client-name" class="glass-input" placeholder="Client Name" value="Globex Inc.">
+                </div>
+                <div class="form-row">
+                    <div class="input-group">
+                        <input type="text" id="client-email" class="glass-input" placeholder="Client Email" value="billing@globex.com">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="client-address" class="glass-input" placeholder="Client Address" value="456 Enterprise Blvd, SF">
+                    </div>
+                </div>
+
+                <div class="section-title">Invoice Items</div>
+                <div id="items-container">
+                    </div>
+                <button id="btn-add-item" class="btn btn-secondary w-full">+ Add New Item</button>
+
+                <div class="section-title">Adjustments</div>
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Tax (%)</label>
+                        <input type="number" id="tax-rate" class="glass-input" min="0" value="10">
+                    </div>
+                    <div class="input-group">
+                        <label>Discount (%)</label>
+                        <input type="number" id="discount-rate" class="glass-input" min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="btn-print" class="btn btn-outline w-full">Print Invoice</button>
+                    <button id="btn-download" class="btn btn-primary w-full">Download PDF</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-panel">
+            <div id="invoice-preview" class="invoice-paper">
+                <div class="inv-header">
+                    <div class="inv-brand">
+                        <h1 id="preview-company-name">Acme Corp</h1>
+                        <p id="preview-company-email">hello@acmecorp.com</p>
+                        <p id="preview-company-address">123 SaaS Street, NY</p>
+                    </div>
+                    <div class="inv-meta">
+                        <h2>INVOICE</h2>
+                        <div class="meta-item">
+                            <span>Invoice No:</span>
+                            <strong id="preview-inv-number">INV-0001</strong>
+                        </div>
+                        <div class="meta-item">
+                            <span>Date:</span>
+                            <strong id="preview-inv-date">YYYY-MM-DD</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inv-bill-to">
+                    <h3>Bill To:</h3>
+                    <h4 id="preview-client-name">Globex Inc.</h4>
+                    <p id="preview-client-email">billing@globex.com</p>
+                    <p id="preview-client-address">456 Enterprise Blvd, SF</p>
+                </div>
+
+                <table class="inv-table">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th class="text-right">Qty</th>
+                            <th class="text-right">Price</th>
+                            <th class="text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="preview-items-body">
+                        </tbody>
+                </table>
+
+                <div class="inv-totals">
+                    <div class="totals-row">
+                        <span>Subtotal:</span>
+                        <span id="preview-subtotal">$0.00</span>
+                    </div>
+                    <div class="totals-row">
+                        <span>Discount (<span id="preview-discount-rate">0</span>%):</span>
+                        <span id="preview-discount-amount">-$0.00</span>
+                    </div>
+                    <div class="totals-row">
+                        <span>Tax (<span id="preview-tax-rate">10</span>%):</span>
+                        <span id="preview-tax-amount">+$0.00</span>
+                    </div>
+                    <div class="totals-row grand-total">
+                        <span>Total:</span>
+                        <span id="preview-total">$0.00</span>
+                    </div>
+                </div>
+                
+                <div class="inv-footer">
+                    <p>Thank you for your business!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
